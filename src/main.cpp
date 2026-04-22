@@ -3,10 +3,12 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <exception>
 #include <fstream>
 #include <iostream>
 #include <string>
 #include <thread>
+#include <variant>
 
 using json = nlohmann::json;
 
@@ -22,13 +24,42 @@ int main(int argc, char const *argv[])
     const int RCON_PORT = configdocument.value("rcon_port", 16262);
     const std::string RCON_PASSWORD = configdocument.value("rcon_password", "");
     const int POLL_SECONDS = configdocument.value("poll_seconds", 60);
+    const uint64_t GUILD_ID = configdocument.value("guild_id", 0ULL);
 
     dpp::cluster bot(BOT_TOKEN);
     bot.on_log(dpp::utility::cout_logger());
 
-    bot.on_slashcommand([](const dpp::slashcommand_t& event) {
+    bot.on_slashcommand([&RCON_HOST, RCON_PORT, &RCON_PASSWORD](const dpp::slashcommand_t& event) {
         if (event.command.get_command_name() == "ping") {
             event.reply("Pong!");
+            return;
+        }
+
+        if (event.command.get_command_name() != "rcon") {
+            return;
+        }
+
+        const std::string command = std::get<std::string>(event.get_parameter("command"));
+
+        try {
+            pzserverbot::RconClient rcon(RCON_HOST, RCON_PORT, RCON_PASSWORD);
+            rcon.connect_and_auth();
+
+            std::string response = rcon.command(command);
+            if (response.empty()) {
+                response = "(empty response)";
+            }
+
+            if (response.size() > 1900) {
+                dpp::message msg("RCON response was too long, attached as a text file.");
+                msg.add_file("rcon-response.txt", response);
+                event.reply(msg);
+                return;
+            }
+
+            event.reply("```text\n" + response + "\n```");
+        } catch (const std::exception& exception) {
+            event.reply(std::string("RCON failed: ") + exception.what());
         }
     });
 
@@ -36,9 +67,27 @@ int main(int argc, char const *argv[])
     // TODO: Persist this message id so bot restarts edit the same Discord status message.
     pzserverbot::WebhookStatusMessage status_message;
 
-    bot.on_ready([&bot, &WEBHOOK_URL, &RCON_HOST, RCON_PORT, &RCON_PASSWORD, POLL_SECONDS, &polling_started, &status_message](const dpp::ready_t& event) {
+    bot.on_ready([&bot, &WEBHOOK_URL, &RCON_HOST, RCON_PORT, &RCON_PASSWORD, POLL_SECONDS, GUILD_ID, &polling_started, &status_message](const dpp::ready_t& event) {
         if (dpp::run_once<struct register_bot_commands>()) {
-            bot.global_command_create(dpp::slashcommand("ping", "Ping pong!", bot.me.id));
+            const dpp::slashcommand ping_command("ping", "Ping pong!", bot.me.id);
+            const dpp::slashcommand rcon_command =
+                dpp::slashcommand("rcon", "Run a Project Zomboid RCON command", bot.me.id)
+                    .add_option(
+                        dpp::command_option(
+                            dpp::co_string,
+                            "command",
+                            "RCON command to run",
+                            true
+                        )
+                    );
+
+            if (GUILD_ID != 0) {
+                bot.guild_command_create(ping_command, dpp::snowflake(GUILD_ID));
+                bot.guild_command_create(rcon_command, dpp::snowflake(GUILD_ID));
+            } else {
+                bot.global_command_create(ping_command);
+                bot.global_command_create(rcon_command);
+            }
         }
 
         if (dpp::run_once<struct start_player_status_polling>()) {

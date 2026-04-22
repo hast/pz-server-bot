@@ -14,6 +14,7 @@ namespace {
 constexpr int RCON_AUTH = 3;
 constexpr int RCON_AUTH_RESPONSE = 2;
 constexpr int RCON_COMMAND = 2;
+constexpr int32_t MAX_RCON_PACKET_SIZE = 1024 * 1024;
 
 int32_t read_le_i32(const char* data)
 {
@@ -150,8 +151,11 @@ RconClient::RconResponse RconClient::receive_packet()
     recv_all(socket_fd_, size_buffer, sizeof(size_buffer));
 
     const int32_t packet_size = read_le_i32(size_buffer);
-    if (packet_size < 10 || packet_size > 4096) {
-        throw std::runtime_error("Invalid RCON packet size");
+    if (packet_size < 10 || packet_size > MAX_RCON_PACKET_SIZE) {
+        throw std::runtime_error(
+            "Invalid RCON packet size: " + std::to_string(packet_size) +
+            ". Check that rcon_port points to the RCON TCP port, not the game port."
+        );
     }
 
     std::vector<char> packet(static_cast<std::size_t>(packet_size));
