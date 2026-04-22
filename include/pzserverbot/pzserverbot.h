@@ -3,4 +3,5 @@
 #include <dpp/dpp.h>
 #include <dpp/nlohmann/json.hpp>
 
-// Place any forward declarations here
+#include <pzserverbot/player_status.h>
+#include <pzserverbot/rcon_client.h>
