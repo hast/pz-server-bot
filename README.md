@@ -36,24 +36,18 @@ Notes:
 - `rcon_port` should be the RCON TCP port, not the game port. Usually `DefaultPort=16261` and `RCONPort=16262`.
 - Rotate any Discord bot token or webhook URL that gets pasted into chat or committed by accident.
 
-## Near-Term TODOs
+## Implemented Structure
 
-### 1. Commit Current Refactor
-
-Commit the current split:
+The bot is split into:
 
 - `src/main.cpp`: app/bootstrap and polling loop.
 - `src/rcon_client.cpp`: Source RCON client.
 - `src/player_status.cpp`: player parsing, embed creation, webhook publishing.
 - `include/pzserverbot/*.h`: public project headers.
 
-Suggested commit:
+## Near-Term TODOs
 
-```text
-Add RCON player status webhook
-```
-
-### 2. Harden `/rcon`
+### 1. Harden `/rcon`
 
 `/rcon` is powerful and should not stay public.
 
@@ -63,7 +57,7 @@ TODO:
 - For long responses, attach a `.txt` file instead of truncating.
 - Optional: add `/rconfind command:<command> query:<text>` to search huge RCON outputs like `showoptions`.
 
-### 3. Join/Leave Log Channel
+### 2. Join/Leave Log Channel
 
 Add a second webhook for a log channel:
 
@@ -89,7 +83,7 @@ On first poll, initialize state without sending messages. On later polls, send:
 
 This feature should be done before the database because the database session logic will reuse the same join/leave detection.
 
-### 4. Improve Status Embed
+### 3. Improve Status Embed
 
 The status embed should eventually show:
 
@@ -104,7 +98,7 @@ The status embed should eventually show:
   - FPS
   - zombie/player counters
 
-### 5. Persist Status Message ID
+### 4. Persist Status Message ID
 
 Current behavior:
 
