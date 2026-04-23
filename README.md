@@ -179,49 +179,62 @@ Checked commands:
 
 Useful stats exist, but no live world date/time was found.
 
-### Recommended Solution
+### Implemented Mod
 
-Create a separate Project Zomboid server mod, probably in a separate repo:
+Use the companion Project Zomboid server mod:
 
 ```text
-pz-server-telemetry-mod
+Workshop ID: 3712575846
+Mod ID: ServerTimeJson
 ```
 
-The mod should write the actual game time/date to a JSON file.
+The mod loads the actual server time/date and writes it to:
 
-Example telemetry file:
+```text
+mod/3712575846/mods/ServerTimeJson/common/server_time.json
+```
+
+The Lua writer lives at:
+
+```text
+mod/3712575846/mods/ServerTimeJson/42/media/lua/server/ServerTimeJson.lua
+```
+
+It uses `getGameTime()` and writes at most once every 10 seconds.
+
+This is the preferred source for the bot's in-game clock because it reads real server state instead of estimating time from `DayLength`.
+
+Current telemetry format:
 
 ```json
 {
-  "updated_at_real": "2026-04-23T23:28:00Z",
-  "game": {
-    "year": 1993,
-    "month": 7,
-    "day": 12,
-    "hour": 15,
-    "minute": 40
-  },
-  "is_world_paused": false
+  "year": 1993,
+  "month": 7,
+  "day": 14,
+  "hour": 3,
+  "minute": 10,
+  "date": "1993-07-14",
+  "time": "03:10:00"
 }
 ```
 
-Bot config later:
+Field notes:
 
-```json
-{
-  "telemetry_path": "/path/to/pz-telemetry.json",
-  "telemetry_poll_seconds": 30
-}
-```
+- `month` is 1-based because the Lua mod converts `getMonth() + 1`.
+- `day` comes from `getDayPlusOne()`.
+- `hour` and `minute` are derived from `getTimeOfDay()`.
+- `date` and `time` are already formatted for display.
+
+Set `telemetry_path` in `config.json` to point at the generated `server_time.json` file.
 
 Why file bridge:
 
 - Simple.
 - Debuggable.
 - No HTTP server needed in the bot.
-- Handles world pause correctly because the mod writes actual server time, not an estimate.
+- Handles world pause correctly because `ServerTimeJson` writes actual server time, not an estimate.
 
-Do not edit Discord every second for a live timer. If the mod writes every second, the bot can still update Discord every 30-60 seconds.
+Do not edit Discord every second for a live timer. The mod writes JSON every 10 seconds, and the bot can read that file when it updates the Discord embed every 30-60 seconds.
 
 ## Possible Architecture Later
 
@@ -259,3 +272,4 @@ From WSL:
 ```bash
 cmake --build build
 ```
+opt/pzserver/steamapps/workshop/content/108600/3712575846/mods/ServerTimeJson/common/server_time.json

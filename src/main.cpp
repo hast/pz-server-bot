@@ -4,18 +4,37 @@
 #include <atomic>
 #include <chrono>
 #include <exception>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <thread>
 #include <variant>
 
 using json = nlohmann::json;
 
+namespace {
+std::string resolve_config_relative_path(const std::filesystem::path& config_path, const std::string& path)
+{
+    if (path.empty()) {
+        return "";
+    }
+
+    const std::filesystem::path configured_path(path);
+    if (configured_path.is_absolute()) {
+        return configured_path.lexically_normal().string();
+    }
+
+    return (config_path.parent_path() / configured_path).lexically_normal().string();
+}
+} // namespace
+
 int main(int argc, char const *argv[])
 {
+    const std::filesystem::path config_path("../config.json");
     json configdocument;
-    std::ifstream configfile("../config.json");
+    std::ifstream configfile(config_path);
     configfile >> configdocument;
 
     const std::string BOT_TOKEN = configdocument["token"];
@@ -25,6 +44,8 @@ int main(int argc, char const *argv[])
     const std::string RCON_PASSWORD = configdocument.value("rcon_password", "");
     const int POLL_SECONDS = configdocument.value("poll_seconds", 60);
     const uint64_t GUILD_ID = configdocument.value("guild_id", 0ULL);
+    const std::string TELEMETRY_PATH =
+        resolve_config_relative_path(config_path, configdocument.value("telemetry_path", ""));
 
     dpp::cluster bot(BOT_TOKEN);
     bot.on_log(dpp::utility::cout_logger());
@@ -67,7 +88,7 @@ int main(int argc, char const *argv[])
     // TODO: Persist this message id so bot restarts edit the same Discord status message.
     pzserverbot::WebhookStatusMessage status_message;
 
-    bot.on_ready([&bot, &WEBHOOK_URL, &RCON_HOST, RCON_PORT, &RCON_PASSWORD, POLL_SECONDS, GUILD_ID, &polling_started, &status_message](const dpp::ready_t& event) {
+    bot.on_ready([&bot, &WEBHOOK_URL, &RCON_HOST, RCON_PORT, &RCON_PASSWORD, POLL_SECONDS, GUILD_ID, &TELEMETRY_PATH, &polling_started, &status_message](const dpp::ready_t& event) {
         if (dpp::run_once<struct register_bot_commands>()) {
             const dpp::slashcommand ping_command("ping", "Ping pong!", bot.me.id);
             const dpp::slashcommand rcon_command =
@@ -100,12 +121,20 @@ int main(int argc, char const *argv[])
                 return;
             }
 
-            std::thread([&bot, WEBHOOK_URL, RCON_HOST, RCON_PORT, RCON_PASSWORD, POLL_SECONDS, &status_message] {
+            std::thread([&bot, WEBHOOK_URL, RCON_HOST, RCON_PORT, RCON_PASSWORD, POLL_SECONDS, TELEMETRY_PATH, &status_message] {
                 while (true) {
                     const pzserverbot::PlayerStatus status =
                         pzserverbot::fetch_player_status(RCON_HOST, RCON_PORT, RCON_PASSWORD);
+                    const std::optional<pzserverbot::ServerTime> server_time =
+                        pzserverbot::read_server_time(TELEMETRY_PATH);
 
-                    pzserverbot::publish_player_status_webhook(bot, WEBHOOK_URL, status, status_message);
+                    pzserverbot::publish_player_status_webhook(
+                        bot,
+                        WEBHOOK_URL,
+                        status,
+                        server_time,
+                        status_message
+                    );
 
                     std::this_thread::sleep_for(std::chrono::seconds(std::max(5, POLL_SECONDS)));
                 }

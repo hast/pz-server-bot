@@ -72,11 +72,15 @@ PlayerStatus fetch_player_status(const std::string& host, int port, const std::s
     }
 }
 
-dpp::embed make_player_embed(const PlayerStatus& status)
+dpp::embed make_player_embed(const PlayerStatus& status, const std::optional<ServerTime>& server_time)
 {
     dpp::embed embed = dpp::embed()
         .set_title("Project Zomboid Server")
         .set_timestamp(std::time(nullptr));
+
+    if (server_time) {
+        embed.add_field("In-Game Time", format_server_time(*server_time), true);
+    }
 
     if (!status.ok) {
         return embed
@@ -101,10 +105,13 @@ dpp::embed make_player_embed(const PlayerStatus& status)
 }
 
 namespace {
-dpp::message make_player_status_message(const PlayerStatus& status)
+dpp::message make_player_status_message(
+    const PlayerStatus& status,
+    const std::optional<ServerTime>& server_time
+)
 {
     dpp::message msg;
-    msg.add_embed(make_player_embed(status));
+    msg.add_embed(make_player_embed(status, server_time));
     return msg;
 }
 } // namespace
@@ -113,10 +120,11 @@ void publish_player_status_webhook(
     dpp::cluster& bot,
     const std::string& webhook_url,
     const PlayerStatus& status,
+    const std::optional<ServerTime>& server_time,
     WebhookStatusMessage& status_message
 )
 {
-    dpp::message msg = make_player_status_message(status);
+    dpp::message msg = make_player_status_message(status, server_time);
     const uint64_t message_id = status_message.message_id.load();
 
     if (message_id != 0) {

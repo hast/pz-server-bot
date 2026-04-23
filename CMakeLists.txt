@@ -10,6 +10,7 @@ add_executable(${PROJECT_NAME}
     src/main.cpp
     src/player_status.cpp
     src/rcon_client.cpp
+    src/server_time.cpp
 )
  
 # Find our pre-installed DPP package (using FindDPP.cmake).
